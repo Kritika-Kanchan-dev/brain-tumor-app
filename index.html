@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Brain Tumor Classifier</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --accent: #00e5ff;
+    --accent2: #ff3cac;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --glioma: #ff3cac;
+    --meningioma: #ffb800;
+    --notumor: #00e5ff;
+    --pituitary: #a855f7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glowing orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+    top: -200px; right: -200px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .orb2 {
+    position: fixed;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(255,60,172,0.06) 0%, transparent 70%);
+    bottom: -150px; left: -150px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 56px;
+    animation: fadeDown 0.8s ease both;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(0,229,255,0.3);
+    padding: 6px 16px;
+    border-radius: 2px;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+
+  h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  /* Upload Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.8s 0.2s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+
+  /* Drop zone */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+  }
+
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.04);
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .upload-icon {
+    width: 52px; height: 52px;
+    margin: 0 auto 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .dropzone:hover .upload-icon {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(0,229,255,0.2);
+  }
+
+  .upload-icon svg { width: 22px; height: 22px; stroke: var(--muted); transition: stroke 0.3s; }
+  .dropzone:hover .upload-icon svg { stroke: var(--accent); }
+
+  .drop-text { font-size: 0.95rem; color: var(--muted); }
+  .drop-text strong { color: var(--accent); font-weight: 700; }
+  .drop-hint { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  /* Preview */
+  .preview-wrap {
+    display: none;
+    align-items: center;
+    gap: 20px;
+    padding: 16px;
+    background: rgba(0,229,255,0.04);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 4px;
+    margin-top: 20px;
+  }
+
+  .preview-wrap.visible { display: flex; }
+
+  .preview-wrap img {
+    width: 72px; height: 72px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+  }
+
+  .preview-info { flex: 1; }
+  .preview-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+  .preview-size { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .remove-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .remove-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Analyze button */
+  .btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), rgba(0,229,255,0.7));
+    border: none;
+    color: #0a0a0f;
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px rgba(0,229,255,0.3);
+  }
+
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn .loading {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .btn.loading-state .btn-text { display: none; }
+  .btn.loading-state .loading { display: flex; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #0a0a0f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* Results */
+  .results {
+    display: none;
+    animation: fadeUp 0.5s ease both;
+  }
+  .results.visible { display: block; }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 36px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .result-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+  }
+
+  .result-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .result-prediction {
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+
+  .result-confidence {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .result-confidence span { color: var(--accent); font-weight: 700; }
+
+  /* Probability bars */
+  .prob-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .prob-item { margin-bottom: 14px; }
+
+  .prob-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .prob-name { font-size: 0.85rem; font-weight: 700; }
+  .prob-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .prob-bar-bg {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .prob-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Error */
+  .error-card {
+    display: none;
+    background: rgba(255,60,172,0.06);
+    border: 1px solid rgba(255,60,172,0.2);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent2);
+  }
+  .error-card.visible { display: block; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    margin-top: 48px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    animation: fadeUp 0.8s 0.4s ease both;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Color per class */
+  .color-glioma { color: var(--glioma); }
+  .color-meningioma { color: var(--meningioma); }
+  .color-notumor { color: var(--notumor); }
+  .color-pituitary { color: var(--pituitary); }
+
+  .fill-glioma { background: var(--glioma); }
+  .fill-meningioma { background: var(--meningioma); }
+  .fill-notumor { background: var(--notumor); }
+  .fill-pituitary { background: var(--pituitary); }
+</style>
+</head>
+<body>
+<div class="orb2"></div>
+
+<div class="container">
+  <header>
+    <div class="tag">Neural Diagnostics</div>
+    <h1>Brain Tumor<br/><span>Classifier</span></h1>
+    <p class="subtitle">Upload an MRI scan → get instant AI classification</p>
+  </header>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*"/>
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p class="drop-text"><strong>Click to upload</strong> or drag & drop</p>
+      <p class="drop-hint">JPG, PNG, WEBP — Brain MRI scan</p>
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" src="" alt="preview"/>
+      <div class="preview-info">
+        <div class="preview-name" id="previewName"></div>
+        <div class="preview-size" id="previewSize"></div>
+      </div>
+      <button class="remove-btn" onclick="removeFile()">✕ Remove</button>
+    </div>
+
+    <button class="btn" id="analyzeBtn" disabled onclick="analyze()">
+      <span class="btn-text">Analyze MRI Scan</span>
+      <span class="loading">
+        <span class="spinner"></span>
+        Analyzing...
+      </span>
+    </button>
+
+    <div class="error-card" id="errorCard"></div>
+  </div>
+
+  <div class="results" id="results">
+    <div class="result-card">
+      <div class="result-label">Diagnosis Result</div>
+      <div class="result-prediction" id="resultPrediction"></div>
+      <div class="result-confidence" id="resultConfidence"></div>
+
+      <div class="prob-title">All Class Probabilities</div>
+      <div id="probBars"></div>
+    </div>
+  </div>
+
+  <footer>
+    Powered by a CNN model deployed on AWS EC2 &nbsp;·&nbsp;
+    For research & educational use only
+  </footer>
+</div>
+
+<script>
+  // ← REPLACE THIS with your actual EC2 Public IP
+  const API_URL = "http://3.106.55.157:5000";
+
+  const CLASS_COLORS = {
+    "Glioma":     { text: "color-glioma",      fill: "fill-glioma" },
+    "Meningioma": { text: "color-meningioma",   fill: "fill-meningioma" },
+    "No Tumor":   { text: "color-notumor",      fill: "fill-notumor" },
+    "Pituitary":  { text: "color-pituitary",    fill: "fill-pituitary" },
+  };
+
+  let selectedFile = null;
+
+  const fileInput   = document.getElementById("fileInput");
+  const dropzone    = document.getElementById("dropzone");
+  const analyzeBtn  = document.getElementById("analyzeBtn");
+  const previewWrap = document.getElementById("previewWrap");
+  const previewImg  = document.getElementById("previewImg");
+  const previewName = document.getElementById("previewName");
+  const previewSize = document.getElementById("previewSize");
+  const results     = document.getElementById("results");
+  const errorCard   = document.getElementById("errorCard");
+
+  fileInput.addEventListener("change", e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+  dropzone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => { previewImg.src = e.target.result; };
+    reader.readAsDataURL(file);
+    previewName.textContent = file.name;
+    previewSize.textContent = (file.size / 1024).toFixed(1) + " KB";
+    previewWrap.classList.add("visible");
+    analyzeBtn.disabled = false;
+    results.classList.remove("visible");
+    errorCard.classList.remove("visible");
+  }
+
+  function removeFile() {
+    selectedFile = null;
+    fileInput.value = "";
+    previewWrap.classList.remove("visible");
+    analyzeBtn.disabled = true;
+    results.classList.remove("visible");
+    errorCard.classList.remove("visible");
+  }
+
+  async function analyze() {
+    if (!selectedFile) return;
+
+    analyzeBtn.disabled = true;
+    analyzeBtn.classList.add("loading-state");
+    results.classList.remove("visible");
+    errorCard.classList.remove("visible");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await fetch(`${API_URL}/predict`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+      const data = await response.json();
+      showResults(data);
+    } catch (err) {
+      errorCard.textContent = "⚠ " + (err.message || "Could not connect to the server. Make sure the API is running.");
+      errorCard.classList.add("visible");
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeBtn.classList.remove("loading-state");
+    }
+  }
+
+  function showResults(data) {
+    const pred = data.prediction;
+    const conf = data.confidence;
+    const probs = data.all_probabilities;
+    const colors = CLASS_COLORS[pred] || { text: "", fill: "fill-notumor" };
+
+    document.getElementById("resultPrediction").textContent = pred;
+    document.getElementById("resultPrediction").className = `result-prediction ${colors.text}`;
+    document.getElementById("resultConfidence").innerHTML =
+      `Confidence: <span>${conf}%</span>`;
+
+    const probBars = document.getElementById("probBars");
+    probBars.innerHTML = "";
+
+    Object.entries(probs)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([name, pct]) => {
+        const c = CLASS_COLORS[name] || { text: "", fill: "fill-notumor" };
+        const item = document.createElement("div");
+        item.className = "prob-item";
+        item.innerHTML = `
+          <div class="prob-header">
+            <span class="prob-name ${c.text}">${name}</span>
+            <span class="prob-val">${pct}%</span>
+          </div>
+          <div class="prob-bar-bg">
+            <div class="prob-bar-fill ${c.fill}" data-width="${pct}"></div>
+          </div>`;
+        probBars.appendChild(item);
+      });
+
+    results.classList.add("visible");
+
+    // Animate bars after render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.querySelectorAll(".prob-bar-fill").forEach(bar => {
+          bar.style.width = bar.dataset.width + "%";
+        });
+      });
+    });
+  }
+</script>
+</body>
+</html>
